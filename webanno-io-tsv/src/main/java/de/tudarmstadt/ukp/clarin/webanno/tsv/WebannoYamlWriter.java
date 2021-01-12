@@ -26,6 +26,7 @@ import org.apache.uima.fit.descriptor.ConfigurationParameter;
 import org.apache.uima.jcas.JCas;
 import org.dkpro.core.api.io.JCasFileWriter_ImplBase;
 import org.dkpro.core.api.parameter.ComponentParameters;
+import org.pw_mini_ig.tools.IgSchemaUtilities;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -68,6 +69,8 @@ public class WebannoYamlWriter
             public int id; // -1 if not specified
             public String name;
             public String text;
+            public int beg; //span
+            public int end; //span
             public List<Node> children = new ArrayList<>();
 
             public Node(int id, String name, String text) {
@@ -120,7 +123,7 @@ public class WebannoYamlWriter
 
             // get number of id occurrences in sentence to set correct order in tree paths (elements with lower counts are deeper in the tree)
             Map<Integer, Double> idCounts = new HashMap<Integer, Double>();
-            Pattern pattern = Pattern.compile("\\d+(?=\\])");
+            Pattern pattern = Pattern.compile("\\d+(?=])");
             for (String[] values : tokens) {
                 for (int i : pos) {
                     Matcher matcher = pattern.matcher(values[i]);
@@ -132,11 +135,11 @@ public class WebannoYamlWriter
                 }
             }
 
-            String prev = null;
+            int prev = -1;
             for (String[] values : tokens) {
                 // get elements with ids
                 List<String> rawElements = new ArrayList<>();
-                pattern = Pattern.compile("\\([^\\]]*\\]|Regulative Statement[^\\]]*\\]|Fact\\/Observation[^\\]]*\\]|Constitutive Statement[^\\]]*\\]");
+                pattern = Pattern.compile("\\([^]]*]|Regulative Statement[^]]*]|Fact/Observation[^]]*]|Constitutive Statement[^]]*]");
                 for (int i : pos) {
                     Matcher matcher = pattern.matcher(values[i]);
                     while (matcher.find()) {
@@ -154,27 +157,31 @@ public class WebannoYamlWriter
                 Collections.sort(elements);
                 Collections.reverse(elements);
 
+                int beg = Integer.parseInt(values[1].substring(0, values[1].indexOf('-')));
+                int end = Integer.parseInt(values[1].substring(values[1].indexOf('-') + 1));
+
                 // insert elements into the tree
                 Node deepest = null;
                 for (Element e : elements) {
                     if (nodes.containsKey(e.id)) {
-                        if (!values[1].substring(0, values[1].indexOf('-')).equals(prev)) //check for whitespace
+                        if (beg != prev) //check for whitespace
                         {
                             nodes.get(e.id).text += " ";
                         }
                         nodes.get(e.id).text += values[2];
-                        deepest = nodes.get(e.id);
                     }
                     else {
                         nodes.put(e.id, new Node(e.id, e.name, values[2]));
+                        nodes.get(e.id).beg = beg;
                         if (deepest == null) {
                             roots.add(nodes.get(e.id));
                         }
                         else {
                             deepest.children.add(nodes.get(e.id));
                         }
-                        deepest = nodes.get(e.id);
                     }
+                    nodes.get(e.id).end = end;
+                    deepest = nodes.get(e.id);
                 }
 
                 // add elements with no specified ids (if an element is one token long and has no relations, I think it only happens in the constitutive components column)
@@ -190,15 +197,18 @@ public class WebannoYamlWriter
                         deepest.children.add(n);
                         deepest = n;
                     }
+                    n.beg = beg;
+                    n.end = end;
                 }
 
                 // get last character position
-                prev = values[1].substring(values[1].indexOf('-') + 1);
+                prev = end;
             }
         }
 
         for (Node r : roots) {
             // create yaml classes from trees
+
         }
 
 
