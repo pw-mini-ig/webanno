@@ -26,6 +26,8 @@ import org.apache.uima.fit.descriptor.ConfigurationParameter;
 import org.apache.uima.jcas.JCas;
 import org.dkpro.core.api.io.JCasFileWriter_ImplBase;
 import org.dkpro.core.api.parameter.ComponentParameters;
+import org.pw_mini_ig.exceptions.InvalidIGDefinitionException;
+import org.pw_mini_ig.models.*;
 import org.pw_mini_ig.tools.IgSchemaUtilities;
 
 import java.io.IOException;
@@ -77,6 +79,295 @@ public class WebannoYamlWriter
                 this.id = id;
                 this.name = name;
                 this.text = text;
+            }
+
+            private SimpleNode simple() {
+                return new SimpleNode(text, beg, end - beg);
+            }
+
+            public AbstractStatement createStatement(String type) throws InvalidIGDefinitionException {
+                switch(type) {
+                    case "Regulative Statement":
+                        SimpleNode deontic = null;
+                        List<StatementOrComponentWithProperties> bdirProps = new ArrayList<>();
+                        List<StatementOrComponentWithProperties> bindProps = new ArrayList<>();
+                        List<StatementOrComponentWithProperties> attrProps = new ArrayList<>();
+                        List<ComponentWithoutProperties> aims = new ArrayList<>();
+                        List<ComponentWithoutProperties> cacs = new ArrayList<>();
+                        List<ComponentWithoutProperties> cexs = new ArrayList<>();
+                        List<ComponentWithProperties> bdirs = new ArrayList<>();
+                        List<ComponentWithProperties> binds = new ArrayList<>();
+                        List<Statement> bdirs_s = new ArrayList<>();
+                        List<Statement> binds_s = new ArrayList<>();
+                        List<Statement> cacs_s = new ArrayList<>();
+                        List<Statement> cexs_s = new ArrayList<>();
+                        List<ComponentWithProperties> attributes = new ArrayList<>();
+
+                        for (Node c : children) {
+                            Statement nested = null;
+                            if (c.name.equals("Regulative Statement") || c.name.equals("Constitutive Statement") || c.name.equals("Fact/Observation")) {
+                                if (c.children.size() != 1) {
+                                    // nested statement has to have an annotation
+                                    return null;
+                                }
+                                nested = c.children.get(0).createStatement(c.name);
+                                if (nested == null) {
+                                    return null;
+                                }
+                            }
+                            Node n;
+                            if (nested != null) {
+                                n = c.children.get(0);
+                            }
+                            else {
+                                n = c;
+                            }
+
+                            switch (n.name) {
+                                case "(A) Attribute":
+                                    if (nested == null) {
+                                        attributes.add(n.simple());
+                                    }
+                                    else {
+                                        //cannot be a statement
+                                        return null;
+                                    }
+                                    break;
+                                case "(I) Aim":
+                                    if (nested == null) {
+                                        aims.add(n.simple());
+                                    }
+                                    else {
+                                        //cannot be a statement
+                                        return null;
+                                    }
+                                    break;
+                                case "(Bdir) Object\\_Direct":
+                                    if (nested == null) {
+                                        bdirs.add(n.simple());
+                                    }
+                                    else {
+                                        bdirs_s.add(nested);
+                                    }
+                                    break;
+                                case "(Bind) Object\\_Indirect":
+                                    if (nested == null) {
+                                        binds.add(n.simple());
+                                    }
+                                    else {
+                                        binds_s.add(nested);
+                                    }
+                                    break;
+                                case "(D) Deontic":
+                                    if (deontic != null) {
+                                        //there can only be one deontic
+                                        return null;
+                                    }
+                                    if (nested != null) {
+                                        //cannot be a statement
+                                        return null;
+                                    }
+                                    deontic = n.simple();
+                                    break;
+                                case "(Cac) Activation Condition":
+                                    if (nested == null) {
+                                        cacs.add(n.simple());
+                                    }
+                                    else {
+                                        cacs_s.add(nested);
+                                    }
+                                    break;
+                                case "(Cex) Execution Constraint":
+                                    if (nested == null) {
+                                        cexs.add(n.simple());
+                                    }
+                                    else {
+                                        cexs_s.add(nested);
+                                    }
+                                    break;
+                                case "(A, prop) Attribute\\_Property":
+                                    if (nested == null) {
+                                        attrProps.add(n.simple());
+                                    }
+                                    else {
+                                        attrProps.add(nested);
+                                    }
+                                    break;
+                                case "(Bdir, prop) Object\\_Direct\\_Property":
+                                    if (nested == null) {
+                                        bdirProps.add(n.simple());
+                                    }
+                                    else {
+                                        bdirProps.add(nested);
+                                    }
+                                    break;
+                                case "(Bind, prop) Object\\_Indirect\\_Property":
+                                    if (nested == null) {
+                                        bindProps.add(n.simple());
+                                    }
+                                    else {
+                                        bindProps.add(nested);
+                                    }
+                                    break;
+                                default:
+                                    //unexpected annotation type
+                                    return null;
+                            }
+                        }
+                        if (attributes.isEmpty()) {
+                            return null;
+                        }
+                        if (aims.isEmpty()) {
+                            return null;
+                        }
+                        if (!bdirs.isEmpty() && !bdirs_s.isEmpty()) {
+                            return null;
+                        }
+                        if (!binds.isEmpty() && !binds_s.isEmpty()) {
+                            return null;
+                        }
+                        if (!cacs.isEmpty() && !cacs_s.isEmpty()) {
+                            return null;
+                        }
+                        if (!cexs.isEmpty() && !cexs_s.isEmpty()) {
+                            return null;
+                        }
+
+                        // add properties
+                        if (!attrProps.isEmpty()) {
+                            if (attributes.isEmpty()) {
+                                // cannot assign properties
+                                return null;
+                            }
+                            ComponentWithProperties cp = new ComponentWithLooselyAttachedProperties((SimpleNode) attributes.get(0), attrProps);
+                            attributes.set(0, cp);
+                        }
+                        if (!bdirProps.isEmpty()) {
+                            if (bdirs.isEmpty()) {
+                                // cannot assign properties
+                                return null;
+                            }
+                            ComponentWithProperties cp = new ComponentWithLooselyAttachedProperties((SimpleNode) bdirs.get(0), bdirProps);
+                            bdirs.set(0, cp);
+                        }
+                        if (!bindProps.isEmpty()) {
+                            if (binds.isEmpty()) {
+                                // cannot assign properties
+                                return null;
+                            }
+                            ComponentWithProperties cp = new ComponentWithLooselyAttachedProperties((SimpleNode) binds.get(0), bindProps);
+                            binds.set(0, cp);
+                        }
+
+                        //combinations
+                        ComponentWithProperties attribute;
+                        ComponentWithoutProperties aim;
+                        StatementOrComponentWithProperties bdir = null;
+                        StatementOrComponentWithProperties bind = null;
+                        StatementOrComponentWithoutProperties cac = null;
+                        StatementOrComponentWithoutProperties cex = null;
+
+                        if (attributes.size() > 1) {
+                            attribute = new ComponentWithPropertiesCombination(LogicalOperator.AND, attributes);
+                        }
+                        else {
+                            attribute = attributes.get(0);
+                        }
+                        if (aims.size() > 1) {
+                            aim = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, aims);
+                        }
+                        else {
+                            aim = aims.get(0);
+                        }
+                        if (!bdirs.isEmpty()) {
+                            if (bdirs.size() > 1) {
+                                bdir = new ComponentWithPropertiesCombination(LogicalOperator.AND, bdirs);
+                            }
+                            else {
+                                bdir = bdirs.get(0);
+                            }
+                        }
+                        if (!bdirs_s.isEmpty()) {
+                            if (bdirs_s.size() > 1) {
+                                bdir = new StatementCombination(LogicalOperator.AND, bdirs_s, "");
+                            }
+                            else {
+                                bdir = bdirs_s.get(0);
+                            }
+                        }
+                        if (!binds.isEmpty()) {
+                            if (binds.size() > 1) {
+                                bind = new ComponentWithPropertiesCombination(LogicalOperator.AND, binds);
+                            }
+                            else {
+                                bind = binds.get(0);
+                            }
+                        }
+                        if (!binds_s.isEmpty()) {
+                            if (binds_s.size() > 1) {
+                                bind = new StatementCombination(LogicalOperator.AND, binds_s, "");
+                            }
+                            else {
+                                bind = bdirs_s.get(0);
+                            }
+                        }
+                        if (!cacs.isEmpty()) {
+                            if (cacs.size() > 1) {
+                                cac = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, cacs);
+                            }
+                            else {
+                                cac = cacs.get(0);
+                            }
+                        }
+                        if (!cacs_s.isEmpty()) {
+                            if (cacs_s.size() > 1) {
+                                cac = new StatementCombination(LogicalOperator.AND, cacs_s, "");
+                            }
+                            else {
+                                cac = cacs_s.get(0);
+                            }
+                        }
+                        if (!cexs.isEmpty()) {
+                            if (cexs.size() > 1) {
+                                cex = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, cexs);
+                            }
+                            else {
+                                cex = cexs.get(0);
+                            }
+                        }
+                        if (!cexs_s.isEmpty()) {
+                            if (cexs_s.size() > 1) {
+                                cex = new StatementCombination(LogicalOperator.AND, cexs_s, "");
+                            }
+                            else {
+                                cex = cexs_s.get(0);
+                            }
+                        }
+
+                        RegulativeStatement r = new RegulativeStatement(attribute, aim, AtomicStatementType.institutionalStatement, text, beg, end-beg);
+                        if (bdir != null) {
+                            r.setDirectObject(bdir);
+                        }
+                        if (bind != null) {
+                            r.setDirectObject(bind);
+                        }
+                        if (deontic != null) {
+                            r.setDeontic(deontic);
+                        }
+                        if (cac != null) {
+                            r.setActivationCondition(cac);
+                        }
+                        if (cex != null) {
+                            r.setExecutionConstraint(cex);
+                        }
+                        return r;
+                    case "Constitutive Statement":
+                        return null;
+                    case "Fact/Observation":
+                        return null;
+                    default:
+                        return null;
+                }
             }
         }
 
@@ -206,15 +497,21 @@ public class WebannoYamlWriter
             }
         }
 
+        List<Statement> statements = new ArrayList<>();
         for (Node r : roots) {
-            // create yaml classes from trees
-
+            AbstractStatement s = null;
+            try {
+                s = r.createStatement(r.name);
+            } catch (InvalidIGDefinitionException e) {
+                e.printStackTrace();
+            }
+            if(s != null) {
+                statements.add(s);
+            }
+            else {
+                //log errors?
+            }
         }
-
-
-
-
-
 
 
         /*
