@@ -85,23 +85,35 @@ public class WebannoYamlWriter
                 return new SimpleNode(text, beg, end - beg);
             }
 
-            public AbstractStatement createStatement(String type) throws InvalidIGDefinitionException {
-                switch(type) {
+            public AbstractStatement createStatement(String statementName) throws InvalidIGDefinitionException {
+                boolean isFact = statementName.equals("Fact/Observation");
+                AtomicStatementType type = isFact ? AtomicStatementType.statementOfFact : AtomicStatementType.institutionalStatement;
+                if (isFact) {
+                    statementName = "Constitutive Statement";
+                    for (Node c : children) {
+                        if (c.name.equals("(A) Attribute")) {
+                            statementName = "Regulative Statement";
+                            break;
+                        }
+                    }
+                }
+
+                switch(statementName) {
                     case "Regulative Statement":
                         SimpleNode deontic = null;
-                        List<StatementOrComponentWithProperties> bdirProps = new ArrayList<>();
-                        List<StatementOrComponentWithProperties> bindProps = new ArrayList<>();
-                        List<StatementOrComponentWithProperties> attrProps = new ArrayList<>();
+                        List<Statement> cacs_s = new ArrayList<>();
+                        List<Statement> cexs_s = new ArrayList<>();
+                        List<Statement> bdirs_s = new ArrayList<>();
+                        List<Statement> binds_s = new ArrayList<>();
+                        List<ComponentWithProperties> bdirs = new ArrayList<>();
+                        List<ComponentWithProperties> binds = new ArrayList<>();
                         List<ComponentWithoutProperties> aims = new ArrayList<>();
                         List<ComponentWithoutProperties> cacs = new ArrayList<>();
                         List<ComponentWithoutProperties> cexs = new ArrayList<>();
-                        List<ComponentWithProperties> bdirs = new ArrayList<>();
-                        List<ComponentWithProperties> binds = new ArrayList<>();
-                        List<Statement> bdirs_s = new ArrayList<>();
-                        List<Statement> binds_s = new ArrayList<>();
-                        List<Statement> cacs_s = new ArrayList<>();
-                        List<Statement> cexs_s = new ArrayList<>();
                         List<ComponentWithProperties> attributes = new ArrayList<>();
+                        List<StatementOrComponentWithProperties> bdirProps = new ArrayList<>();
+                        List<StatementOrComponentWithProperties> bindProps = new ArrayList<>();
+                        List<StatementOrComponentWithProperties> attrProps = new ArrayList<>();
 
                         for (Node c : children) {
                             Statement nested = null;
@@ -165,6 +177,10 @@ public class WebannoYamlWriter
                                     }
                                     if (nested != null) {
                                         //cannot be a statement
+                                        return null;
+                                    }
+                                    if (isFact) {
+                                        //cannot be in a sof
                                         return null;
                                     }
                                     deontic = n.simple();
@@ -235,10 +251,6 @@ public class WebannoYamlWriter
 
                         // add properties
                         if (!attrProps.isEmpty()) {
-                            if (attributes.isEmpty()) {
-                                // cannot assign properties
-                                return null;
-                            }
                             ComponentWithProperties cp = new ComponentWithLooselyAttachedProperties((SimpleNode) attributes.get(0), attrProps);
                             attributes.set(0, cp);
                         }
@@ -344,7 +356,7 @@ public class WebannoYamlWriter
                             }
                         }
 
-                        RegulativeStatement r = new RegulativeStatement(attribute, aim, AtomicStatementType.institutionalStatement, text, beg, end-beg);
+                        RegulativeStatement r = new RegulativeStatement(attribute, aim, type, text, beg, end-beg);
                         if (bdir != null) {
                             r.setDirectObject(bdir);
                         }
@@ -362,9 +374,219 @@ public class WebannoYamlWriter
                         }
                         return r;
                     case "Constitutive Statement":
-                        return null;
-                    case "Fact/Observation":
-                        return null;
+                        deontic = null;
+                        cacs = new ArrayList<>();
+                        cexs = new ArrayList<>();
+                        cacs_s = new ArrayList<>();
+                        cexs_s = new ArrayList<>();
+                        List<ComponentWithProperties> entities = new ArrayList<>();
+                        List<ComponentWithProperties> cProperties = new ArrayList<>();
+                        List<ComponentWithoutProperties> functions= new ArrayList<>();
+                        List<StatementOrComponentWithProperties> entityProps = new ArrayList<>();
+                        List<StatementOrComponentWithProperties> propertyProps = new ArrayList<>();
+
+                        for (Node c : children) {
+                            Statement nested = null;
+                            if (c.name.equals("Regulative Statement") || c.name.equals("Constitutive Statement") || c.name.equals("Fact/Observation")) {
+                                if (c.children.size() != 1) {
+                                    // nested statement has to have an annotation
+                                    return null;
+                                }
+                                nested = c.children.get(0).createStatement(c.name);
+                                if (nested == null) {
+                                    return null;
+                                }
+                            }
+                            Node n;
+                            if (nested != null) {
+                                n = c.children.get(0);
+                            }
+                            else {
+                                n = c;
+                            }
+
+                            switch (n.name) {
+                                case "(E) Constituted Entity":
+                                    if (nested == null) {
+                                        entities.add(n.simple());
+                                    }
+                                    else {
+                                        //cannot be a statement
+                                        return null;
+                                    }
+                                    break;
+                                case "(F) Constitutive Function":
+                                    if (nested == null) {
+                                        functions.add(n.simple());
+                                    }
+                                    else {
+                                        //cannot be a statement
+                                        return null;
+                                    }
+                                    break;
+                                case "(P) Constituting Property":
+                                    if (nested == null) {
+                                        cProperties.add(n.simple());
+                                    }
+                                    else {
+                                        //cannot be a statement
+                                        return null;
+                                    }
+                                    break;
+                                case "(D) Deontic":
+                                    if (deontic != null) {
+                                        //there can only be one deontic
+                                        return null;
+                                    }
+                                    if (nested != null) {
+                                        //cannot be a statement
+                                        return null;
+                                    }
+                                    if (isFact) {
+                                        //cannot be in a sof
+                                        return null;
+                                    }
+                                    deontic = n.simple();
+                                    break;
+                                case "(Cac) Activation Condition":
+                                    if (nested == null) {
+                                        cacs.add(n.simple());
+                                    }
+                                    else {
+                                        cacs_s.add(nested);
+                                    }
+                                    break;
+                                case "(Cex) Execution Constraint":
+                                    if (nested == null) {
+                                        cexs.add(n.simple());
+                                    }
+                                    else {
+                                        cexs_s.add(nested);
+                                    }
+                                    break;
+                                case "(E, prop) Constituted Entity Property":
+                                    if (nested == null) {
+                                        entityProps.add(n.simple());
+                                    }
+                                    else {
+                                        entityProps.add(nested);
+                                    }
+                                    break;
+                                case "(P, prop) Constituting Property Property":
+                                    if (nested == null) {
+                                        propertyProps.add(n.simple());
+                                    }
+                                    else {
+                                        propertyProps.add(nested);
+                                    }
+                                    break;
+                                default:
+                                    //unexpected annotation type
+                                    return null;
+                            }
+                        }
+
+                        if (entities.isEmpty()) {
+                            return null;
+                        }
+                        if (functions.isEmpty()) {
+                            return null;
+                        }
+                        if (!cacs.isEmpty() && !cacs_s.isEmpty()) {
+                            return null;
+                        }
+                        if (!cexs.isEmpty() && !cexs_s.isEmpty()) {
+                            return null;
+                        }
+
+                        // add properties
+                        if (!entityProps.isEmpty()) {
+                            ComponentWithProperties cp = new ComponentWithLooselyAttachedProperties((SimpleNode) entities.get(0), entityProps);
+                            entities.set(0, cp);
+                        }
+                        if (!propertyProps.isEmpty()) {
+                            if (cProperties.isEmpty()) {
+                                // cannot assign properties
+                                return null;
+                            }
+                            ComponentWithProperties cp = new ComponentWithLooselyAttachedProperties((SimpleNode) cProperties.get(0), propertyProps);
+                            cProperties.set(0, cp);
+                        }
+
+                        //combinations
+                        cac = null;
+                        cex = null;
+                        ComponentWithProperties entity;
+                        ComponentWithProperties cProperty = null;
+                        ComponentWithoutProperties function;
+
+                        if (entities.size() > 1) {
+                            entity = new ComponentWithPropertiesCombination(LogicalOperator.AND, entities);
+                        }
+                        else {
+                            entity = entities.get(0);
+                        }
+                        if (functions.size() > 1) {
+                            function = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, functions);
+                        }
+                        else {
+                            function = functions.get(0);
+                        }
+                        if (!cProperties.isEmpty()) {
+                            if (cProperties.size() > 1) {
+                                cProperty = new ComponentWithPropertiesCombination(LogicalOperator.AND, cProperties);
+                            }
+                            else {
+                                cProperty = cProperties.get(0);
+                            }
+                        }
+                        if (!cacs.isEmpty()) {
+                            if (cacs.size() > 1) {
+                                cac = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, cacs);
+                            }
+                            else {
+                                cac = cacs.get(0);
+                            }
+                        }
+                        if (!cacs_s.isEmpty()) {
+                            if (cacs_s.size() > 1) {
+                                cac = new StatementCombination(LogicalOperator.AND, cacs_s, "");
+                            }
+                            else {
+                                cac = cacs_s.get(0);
+                            }
+                        }
+                        if (!cexs.isEmpty()) {
+                            if (cexs.size() > 1) {
+                                cex = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, cexs);
+                            }
+                            else {
+                                cex = cexs.get(0);
+                            }
+                        }
+                        if (!cexs_s.isEmpty()) {
+                            if (cexs_s.size() > 1) {
+                                cex = new StatementCombination(LogicalOperator.AND, cexs_s, "");
+                            }
+                            else {
+                                cex = cexs_s.get(0);
+                            }
+                        }
+
+                        ConstitutiveStatement c = new ConstitutiveStatement(entity, function, type, text, beg, end-beg);
+                        if (cProperty != null) {
+                            c.setConstitutingProperty(cProperty);
+                        }
+                        if (deontic != null) {
+                            c.setDeontic(deontic);
+                        }
+                        if (cac != null) {
+                            c.setActivationCondition(cac);
+                        }
+                        if (cex != null) {
+                            c.setExecutionConstraint(cex);
+                        }
+                        return c;
                     default:
                         return null;
                 }
@@ -385,6 +607,7 @@ public class WebannoYamlWriter
 
         List<Node> roots = new ArrayList<>();
         Map<Integer, Node> nodes = new HashMap<>();
+        Map<Integer, Double> idCounts = new HashMap<Integer, Double>();
 
         List<TsvColumn> headerColumns = doc.getSchema().getHeaderColumns(doc.getActiveColumns());
 
@@ -413,7 +636,6 @@ public class WebannoYamlWriter
             }
 
             // get number of id occurrences in sentence to set correct order in tree paths (elements with lower counts are deeper in the tree)
-            Map<Integer, Double> idCounts = new HashMap<Integer, Double>();
             Pattern pattern = Pattern.compile("\\d+(?=])");
             for (String[] values : tokens) {
                 for (int i : pos) {
@@ -421,16 +643,26 @@ public class WebannoYamlWriter
                     while (matcher.find()) {
                         int match = Integer.parseInt(matcher.group());
                         double count = idCounts.containsKey(match) ? idCounts.get(match) : 0;
-                        idCounts.put(match, count + 1 + i/1e8); // if the number of occurrences is the same, the element from further layer is higher
+                        idCounts.put(match, count + 1 + i / 1e8); // if the number of occurrences is the same, the element from further layer is higher
                     }
                 }
+            }
+        }
+        for (TsvSentence sentence : doc.getSentences()) {
+
+            // get column values for tokens
+            List<TsvToken> tsvTokens = sentence.getTokens();
+            List<String[]> tokens = new ArrayList<>();
+            for (TsvToken t : tsvTokens) {
+                String s = t.toString();
+                tokens.add(s.split("\t"));
             }
 
             int prev = -1;
             for (String[] values : tokens) {
                 // get elements with ids
                 List<String> rawElements = new ArrayList<>();
-                pattern = Pattern.compile("\\([^]]*]|Regulative Statement[^]]*]|Fact/Observation[^]]*]|Constitutive Statement[^]]*]");
+                Pattern pattern = Pattern.compile("\\([^]]*]|Regulative Statement[^]]*]|Fact/Observation[^]]*]|Constitutive Statement[^]]*]");
                 for (int i : pos) {
                     Matcher matcher = pattern.matcher(values[i]);
                     while (matcher.find()) {
