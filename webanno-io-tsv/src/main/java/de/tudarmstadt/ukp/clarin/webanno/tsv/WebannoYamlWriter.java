@@ -68,8 +68,8 @@ public class WebannoYamlWriter
 
         class Node
         {
-            public int id; // -1 if not specified
-            public String name;
+            public final int id; // -1 if not specified
+            public final String name;
             public String text;
             public int beg; //span
             public int end; //span
@@ -101,16 +101,12 @@ public class WebannoYamlWriter
                 switch(statementName) {
                     case "Regulative Statement":
                         SimpleNode deontic = null;
-                        List<Statement> cacs_s = new ArrayList<>();
-                        List<Statement> cexs_s = new ArrayList<>();
-                        List<Statement> bdirs_s = new ArrayList<>();
-                        List<Statement> binds_s = new ArrayList<>();
-                        List<ComponentWithProperties> bdirs = new ArrayList<>();
-                        List<ComponentWithProperties> binds = new ArrayList<>();
                         List<ComponentWithoutProperties> aims = new ArrayList<>();
-                        List<ComponentWithoutProperties> cacs = new ArrayList<>();
-                        List<ComponentWithoutProperties> cexs = new ArrayList<>();
                         List<ComponentWithProperties> attributes = new ArrayList<>();
+                        List<StatementOrComponentWithProperties> bdirs = new ArrayList<>();
+                        List<StatementOrComponentWithProperties> binds = new ArrayList<>();
+                        List<StatementOrComponentWithoutProperties> cacs = new ArrayList<>();
+                        List<StatementOrComponentWithoutProperties> cexs = new ArrayList<>();
                         List<StatementOrComponentWithProperties> bdirProps = new ArrayList<>();
                         List<StatementOrComponentWithProperties> bindProps = new ArrayList<>();
                         List<StatementOrComponentWithProperties> attrProps = new ArrayList<>();
@@ -155,20 +151,10 @@ public class WebannoYamlWriter
                                     }
                                     break;
                                 case "(Bdir) Object\\_Direct":
-                                    if (nested == null) {
-                                        bdirs.add(n.simple());
-                                    }
-                                    else {
-                                        bdirs_s.add(nested);
-                                    }
+                                    bdirs.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(Bind) Object\\_Indirect":
-                                    if (nested == null) {
-                                        binds.add(n.simple());
-                                    }
-                                    else {
-                                        binds_s.add(nested);
-                                    }
+                                    binds.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(D) Deontic":
                                     if (deontic != null) {
@@ -186,44 +172,19 @@ public class WebannoYamlWriter
                                     deontic = n.simple();
                                     break;
                                 case "(Cac) Activation Condition":
-                                    if (nested == null) {
-                                        cacs.add(n.simple());
-                                    }
-                                    else {
-                                        cacs_s.add(nested);
-                                    }
+                                    cacs.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(Cex) Execution Constraint":
-                                    if (nested == null) {
-                                        cexs.add(n.simple());
-                                    }
-                                    else {
-                                        cexs_s.add(nested);
-                                    }
+                                    cexs.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(A, prop) Attribute\\_Property":
-                                    if (nested == null) {
-                                        attrProps.add(n.simple());
-                                    }
-                                    else {
-                                        attrProps.add(nested);
-                                    }
+                                    attrProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(Bdir, prop) Object\\_Direct\\_Property":
-                                    if (nested == null) {
-                                        bdirProps.add(n.simple());
-                                    }
-                                    else {
-                                        bdirProps.add(nested);
-                                    }
+                                    bdirProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(Bind, prop) Object\\_Indirect\\_Property":
-                                    if (nested == null) {
-                                        bindProps.add(n.simple());
-                                    }
-                                    else {
-                                        bindProps.add(nested);
-                                    }
+                                    bindProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 default:
                                     //unexpected annotation type
@@ -234,18 +195,6 @@ public class WebannoYamlWriter
                             return null;
                         }
                         if (aims.isEmpty()) {
-                            return null;
-                        }
-                        if (!bdirs.isEmpty() && !bdirs_s.isEmpty()) {
-                            return null;
-                        }
-                        if (!binds.isEmpty() && !binds_s.isEmpty()) {
-                            return null;
-                        }
-                        if (!cacs.isEmpty() && !cacs_s.isEmpty()) {
-                            return null;
-                        }
-                        if (!cexs.isEmpty() && !cexs_s.isEmpty()) {
                             return null;
                         }
 
@@ -293,66 +242,34 @@ public class WebannoYamlWriter
                         }
                         if (!bdirs.isEmpty()) {
                             if (bdirs.size() > 1) {
-                                bdir = new ComponentWithPropertiesCombination(LogicalOperator.AND, bdirs);
+                                bdir = new StatementOrComponentWithPropertiesCombination(LogicalOperator.AND, bdirs);
                             }
                             else {
                                 bdir = bdirs.get(0);
                             }
                         }
-                        if (!bdirs_s.isEmpty()) {
-                            if (bdirs_s.size() > 1) {
-                                bdir = new StatementCombination(LogicalOperator.AND, bdirs_s, "");
-                            }
-                            else {
-                                bdir = bdirs_s.get(0);
-                            }
-                        }
                         if (!binds.isEmpty()) {
                             if (binds.size() > 1) {
-                                bind = new ComponentWithPropertiesCombination(LogicalOperator.AND, binds);
+                                bind = new StatementOrComponentWithPropertiesCombination(LogicalOperator.AND, binds);
                             }
                             else {
                                 bind = binds.get(0);
                             }
                         }
-                        if (!binds_s.isEmpty()) {
-                            if (binds_s.size() > 1) {
-                                bind = new StatementCombination(LogicalOperator.AND, binds_s, "");
-                            }
-                            else {
-                                bind = bdirs_s.get(0);
-                            }
-                        }
                         if (!cacs.isEmpty()) {
                             if (cacs.size() > 1) {
-                                cac = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, cacs);
+                                cac = new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cacs);
                             }
                             else {
                                 cac = cacs.get(0);
                             }
                         }
-                        if (!cacs_s.isEmpty()) {
-                            if (cacs_s.size() > 1) {
-                                cac = new StatementCombination(LogicalOperator.AND, cacs_s, "");
-                            }
-                            else {
-                                cac = cacs_s.get(0);
-                            }
-                        }
                         if (!cexs.isEmpty()) {
                             if (cexs.size() > 1) {
-                                cex = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, cexs);
+                                cex = new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cexs);
                             }
                             else {
                                 cex = cexs.get(0);
-                            }
-                        }
-                        if (!cexs_s.isEmpty()) {
-                            if (cexs_s.size() > 1) {
-                                cex = new StatementCombination(LogicalOperator.AND, cexs_s, "");
-                            }
-                            else {
-                                cex = cexs_s.get(0);
                             }
                         }
 
@@ -377,8 +294,6 @@ public class WebannoYamlWriter
                         deontic = null;
                         cacs = new ArrayList<>();
                         cexs = new ArrayList<>();
-                        cacs_s = new ArrayList<>();
-                        cexs_s = new ArrayList<>();
                         List<ComponentWithProperties> entities = new ArrayList<>();
                         List<ComponentWithProperties> cProperties = new ArrayList<>();
                         List<ComponentWithoutProperties> functions= new ArrayList<>();
@@ -449,36 +364,16 @@ public class WebannoYamlWriter
                                     deontic = n.simple();
                                     break;
                                 case "(Cac) Activation Condition":
-                                    if (nested == null) {
-                                        cacs.add(n.simple());
-                                    }
-                                    else {
-                                        cacs_s.add(nested);
-                                    }
+                                    cacs.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(Cex) Execution Constraint":
-                                    if (nested == null) {
-                                        cexs.add(n.simple());
-                                    }
-                                    else {
-                                        cexs_s.add(nested);
-                                    }
+                                    cexs.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(E, prop) Constituted Entity Property":
-                                    if (nested == null) {
-                                        entityProps.add(n.simple());
-                                    }
-                                    else {
-                                        entityProps.add(nested);
-                                    }
+                                    entityProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(P, prop) Constituting Property Property":
-                                    if (nested == null) {
-                                        propertyProps.add(n.simple());
-                                    }
-                                    else {
-                                        propertyProps.add(nested);
-                                    }
+                                    propertyProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 default:
                                     //unexpected annotation type
@@ -490,12 +385,6 @@ public class WebannoYamlWriter
                             return null;
                         }
                         if (functions.isEmpty()) {
-                            return null;
-                        }
-                        if (!cacs.isEmpty() && !cacs_s.isEmpty()) {
-                            return null;
-                        }
-                        if (!cexs.isEmpty() && !cexs_s.isEmpty()) {
                             return null;
                         }
 
@@ -542,34 +431,18 @@ public class WebannoYamlWriter
                         }
                         if (!cacs.isEmpty()) {
                             if (cacs.size() > 1) {
-                                cac = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, cacs);
+                                cac = new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cacs);
                             }
                             else {
                                 cac = cacs.get(0);
                             }
                         }
-                        if (!cacs_s.isEmpty()) {
-                            if (cacs_s.size() > 1) {
-                                cac = new StatementCombination(LogicalOperator.AND, cacs_s, "");
-                            }
-                            else {
-                                cac = cacs_s.get(0);
-                            }
-                        }
                         if (!cexs.isEmpty()) {
                             if (cexs.size() > 1) {
-                                cex = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, cexs);
+                                cex = new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cexs);
                             }
                             else {
                                 cex = cexs.get(0);
-                            }
-                        }
-                        if (!cexs_s.isEmpty()) {
-                            if (cexs_s.size() > 1) {
-                                cex = new StatementCombination(LogicalOperator.AND, cexs_s, "");
-                            }
-                            else {
-                                cex = cexs_s.get(0);
                             }
                         }
 
@@ -607,7 +480,7 @@ public class WebannoYamlWriter
 
         List<Node> roots = new ArrayList<>();
         Map<Integer, Node> nodes = new HashMap<>();
-        Map<Integer, Double> idCounts = new HashMap<Integer, Double>();
+        Map<Integer, Double> idCounts = new HashMap<>();
 
         List<TsvColumn> headerColumns = doc.getSchema().getHeaderColumns(doc.getActiveColumns());
 
@@ -626,7 +499,6 @@ public class WebannoYamlWriter
         }
 
         for (TsvSentence sentence : doc.getSentences()) {
-
             // get column values for tokens
             List<TsvToken> tsvTokens = sentence.getTokens();
             List<String[]> tokens = new ArrayList<>();
@@ -649,7 +521,6 @@ public class WebannoYamlWriter
             }
         }
         for (TsvSentence sentence : doc.getSentences()) {
-
             // get column values for tokens
             List<TsvToken> tsvTokens = sentence.getTokens();
             List<String[]> tokens = new ArrayList<>();
@@ -744,7 +615,6 @@ public class WebannoYamlWriter
                 //log errors?
             }
         }
-
 
         /*
         try (PrintWriter docOS = new PrintWriter(
