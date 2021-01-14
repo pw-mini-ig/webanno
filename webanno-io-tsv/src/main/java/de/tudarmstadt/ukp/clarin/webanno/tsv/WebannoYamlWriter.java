@@ -41,6 +41,7 @@ import static org.apache.commons.io.IOUtils.buffer;
 
 /**
  * Writes the yaml format (only for IG).
+ * JCas objects are weird so we use the code from .tsv export to generate more 'readable' objects
  */
 public class WebannoYamlWriter
     extends JCasFileWriter_ImplBase
@@ -63,7 +64,6 @@ public class WebannoYamlWriter
     public void process(JCas aJCas) throws AnalysisEngineProcessException
     {
         TsvSchema schema = Tsv3XCasSchemaAnalyzer.analyze(aJCas.getTypeSystem());
-
         TsvDocument doc = Tsv3XCasDocumentBuilder.of(schema, aJCas);
 
         class Node
@@ -120,16 +120,11 @@ public class WebannoYamlWriter
                                 }
                                 nested = c.children.get(0).createStatement(c.name);
                                 if (nested == null) {
+                                    // nested error
                                     return null;
                                 }
                             }
-                            Node n;
-                            if (nested != null) {
-                                n = c.children.get(0);
-                            }
-                            else {
-                                n = c;
-                            }
+                            Node n = nested == null ? c : c.children.get(0);
 
                             switch (n.name) {
                                 case "(A) Attribute":
@@ -150,10 +145,10 @@ public class WebannoYamlWriter
                                         return null;
                                     }
                                     break;
-                                case "(Bdir) Object\\_Direct":
+                                case "(Bdir) Object_Direct":
                                     bdirs.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
-                                case "(Bind) Object\\_Indirect":
+                                case "(Bind) Object_Indirect":
                                     binds.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(D) Deontic":
@@ -177,13 +172,13 @@ public class WebannoYamlWriter
                                 case "(Cex) Execution Constraint":
                                     cexs.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
-                                case "(A, prop) Attribute\\_Property":
+                                case "(A, prop) Attribute_Property":
                                     attrProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
-                                case "(Bdir, prop) Object\\_Direct\\_Property":
+                                case "(Bdir, prop) Object_Direct_Property":
                                     bdirProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
-                                case "(Bind, prop) Object\\_Indirect\\_Property":
+                                case "(Bind, prop) Object_Indirect_Property":
                                     bindProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 default:
@@ -221,67 +216,22 @@ public class WebannoYamlWriter
                         }
 
                         //combinations
-                        ComponentWithProperties attribute;
-                        ComponentWithoutProperties aim;
-                        StatementOrComponentWithProperties bdir = null;
-                        StatementOrComponentWithProperties bind = null;
-                        StatementOrComponentWithoutProperties cac = null;
-                        StatementOrComponentWithoutProperties cex = null;
-
-                        if (attributes.size() > 1) {
-                            attribute = new ComponentWithPropertiesCombination(LogicalOperator.AND, attributes);
-                        }
-                        else {
-                            attribute = attributes.get(0);
-                        }
-                        if (aims.size() > 1) {
-                            aim = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, aims);
-                        }
-                        else {
-                            aim = aims.get(0);
-                        }
-                        if (!bdirs.isEmpty()) {
-                            if (bdirs.size() > 1) {
-                                bdir = new StatementOrComponentWithPropertiesCombination(LogicalOperator.AND, bdirs);
-                            }
-                            else {
-                                bdir = bdirs.get(0);
-                            }
-                        }
-                        if (!binds.isEmpty()) {
-                            if (binds.size() > 1) {
-                                bind = new StatementOrComponentWithPropertiesCombination(LogicalOperator.AND, binds);
-                            }
-                            else {
-                                bind = binds.get(0);
-                            }
-                        }
-                        if (!cacs.isEmpty()) {
-                            if (cacs.size() > 1) {
-                                cac = new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cacs);
-                            }
-                            else {
-                                cac = cacs.get(0);
-                            }
-                        }
-                        if (!cexs.isEmpty()) {
-                            if (cexs.size() > 1) {
-                                cex = new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cexs);
-                            }
-                            else {
-                                cex = cexs.get(0);
-                            }
-                        }
+                        ComponentWithoutProperties aim = aims.size() > 1 ? new ComponentWithoutPropertiesCombination(LogicalOperator.AND, aims) : aims.get(0);
+                        ComponentWithProperties attribute = attributes.size() > 1 ? new ComponentWithPropertiesCombination(LogicalOperator.AND, attributes) : attributes.get(0);
+                        StatementOrComponentWithProperties bdir = bdirs.isEmpty() ? null : bdirs.size() > 1 ? new StatementOrComponentWithPropertiesCombination(LogicalOperator.AND, bdirs) : bdirs.get(0);
+                        StatementOrComponentWithProperties bind = binds.isEmpty() ? null : binds.size() > 1 ? new StatementOrComponentWithPropertiesCombination(LogicalOperator.AND, binds) : binds.get(0);
+                        StatementOrComponentWithoutProperties cac = cacs.isEmpty() ? null : cacs.size() > 1 ? new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cacs) : cacs.get(0);
+                        StatementOrComponentWithoutProperties cex = cexs.isEmpty() ? null : cexs.size() > 1 ? new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cexs) : cexs.get(0);
 
                         RegulativeStatement r = new RegulativeStatement(attribute, aim, type, text, beg, end-beg);
+                        if (deontic != null) {
+                            r.setDeontic(deontic);
+                        }
                         if (bdir != null) {
                             r.setDirectObject(bdir);
                         }
                         if (bind != null) {
                             r.setDirectObject(bind);
-                        }
-                        if (deontic != null) {
-                            r.setDeontic(deontic);
                         }
                         if (cac != null) {
                             r.setActivationCondition(cac);
@@ -309,16 +259,11 @@ public class WebannoYamlWriter
                                 }
                                 nested = c.children.get(0).createStatement(c.name);
                                 if (nested == null) {
+                                    // nested error
                                     return null;
                                 }
                             }
-                            Node n;
-                            if (nested != null) {
-                                n = c.children.get(0);
-                            }
-                            else {
-                                n = c;
-                            }
+                            Node n = nested == null ? c : c.children.get(0);
 
                             switch (n.name) {
                                 case "(E) Constituted Entity":
@@ -403,48 +348,11 @@ public class WebannoYamlWriter
                         }
 
                         //combinations
-                        cac = null;
-                        cex = null;
-                        ComponentWithProperties entity;
-                        ComponentWithProperties cProperty = null;
-                        ComponentWithoutProperties function;
-
-                        if (entities.size() > 1) {
-                            entity = new ComponentWithPropertiesCombination(LogicalOperator.AND, entities);
-                        }
-                        else {
-                            entity = entities.get(0);
-                        }
-                        if (functions.size() > 1) {
-                            function = new ComponentWithoutPropertiesCombination(LogicalOperator.AND, functions);
-                        }
-                        else {
-                            function = functions.get(0);
-                        }
-                        if (!cProperties.isEmpty()) {
-                            if (cProperties.size() > 1) {
-                                cProperty = new ComponentWithPropertiesCombination(LogicalOperator.AND, cProperties);
-                            }
-                            else {
-                                cProperty = cProperties.get(0);
-                            }
-                        }
-                        if (!cacs.isEmpty()) {
-                            if (cacs.size() > 1) {
-                                cac = new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cacs);
-                            }
-                            else {
-                                cac = cacs.get(0);
-                            }
-                        }
-                        if (!cexs.isEmpty()) {
-                            if (cexs.size() > 1) {
-                                cex = new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cexs);
-                            }
-                            else {
-                                cex = cexs.get(0);
-                            }
-                        }
+                        cac = cacs.isEmpty() ? null : cacs.size() > 1 ? new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cacs) : cacs.get(0);
+                        cex = cexs.isEmpty() ? null : cexs.size() > 1 ? new StatementOrComponentWithoutPropertiesCombination(LogicalOperator.AND, cexs) : cexs.get(0);
+                        ComponentWithProperties entity = entities.size() > 1 ? new ComponentWithPropertiesCombination(LogicalOperator.AND, entities) : entities.get(0);
+                        ComponentWithoutProperties function = functions.size() > 1 ? new ComponentWithoutPropertiesCombination(LogicalOperator.AND, functions) : functions.get(0);
+                        ComponentWithProperties cProperty = cProperties.isEmpty() ? null : cProperties.size() > 1 ? new ComponentWithPropertiesCombination(LogicalOperator.AND, cProperties) : cProperties.get(0);
 
                         ConstitutiveStatement c = new ConstitutiveStatement(entity, function, type, text, beg, end-beg);
                         if (cProperty != null) {
@@ -578,19 +486,30 @@ public class WebannoYamlWriter
                     deepest = nodes.get(e.id);
                 }
 
-                // add elements with no specified ids (if an element is one token long and has no relations, I think it only happens in the constitutive components column)
+                // add elements with no specified ids (if an element is one token long and has no relations?)
+                // this kind of elements do not have consistent format and may be followed by various characters and that is why they are handled this way below
                 rawElements = new ArrayList<>();
-                pattern = Pattern.compile("(\\(D\\)\\sDeontic|\\(E\\)\\sConstituted\\sEntity|\\(F\\)\\sConstitutive\\sFunction|\\(P\\)\\sConstituting\\sProperty(?!\\sProperty)|\\(P,\\sprop\\)\\sConstituting\\sProperty\\sProperty)(?!\\[)");
+                // constitutive components
+                pattern = Pattern.compile("(\\(D\\) Deontic|\\(Cac\\) Activation Condition|\\(Cex\\) Execution Constraint|\\(E\\) Constituted Entity(?! Property)|\\(F\\) Constitutive Function|\\(P\\) Constituting Property(?! Property)|\\(P, prop\\) Constituting Property Property|\\(E, prop\\) Constituted Entity Property)(?!\\[)");
                 Matcher matcher = pattern.matcher(values[pos.get(0)]);
+                while (matcher.find()) {
+                    rawElements.add(matcher.group());
+                }
+                // regulative components
+                pattern = Pattern.compile("(\\(D\\) Deontic|\\(I\\) Aim|\\(Cac\\) Activation Condition|\\(Cex\\) Execution Constraint|\\(A\\) Attribute(?!_)|\\(Bdir\\) Object_Direct(?!_)|\\(Bind\\) Object_Indirect(?!_)|\\(A, prop\\) Attribute_Property|\\(Bdir, prop\\) Object_Direct_Property|\\(Bind, prop\\) Object_Indirect_Property)(?!\\[)");
+                matcher = pattern.matcher(values[pos.get(1)]);
                 while (matcher.find()) {
                     rawElements.add(matcher.group());
                 }
                 for (String re : rawElements) {
                     Node n = new Node(-1, re, values[2]);
-                    if (deepest != null) { // it shouldn't be null, because everything should be in a statement and they have ids (but safer to check)
+                    if (deepest != null) {
                         deepest.children.add(n);
-                        deepest = n;
                     }
+                    else {
+                        roots.add(n);
+                    }
+                    deepest = n;
                     n.beg = beg;
                     n.end = end;
                 }
