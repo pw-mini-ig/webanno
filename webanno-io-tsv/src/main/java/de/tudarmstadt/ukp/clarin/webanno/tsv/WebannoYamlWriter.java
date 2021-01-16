@@ -85,16 +85,23 @@ public class WebannoYamlWriter
                 return new SimpleNode(text, beg, end - beg);
             }
 
-            public AbstractStatement createStatement(String statementName) throws InvalidIGDefinitionException {
+            public AbstractStatement createStatement(String statementName, List<ExportLog> logs) throws InvalidIGDefinitionException {
                 boolean isFact = statementName.equals("Fact/Observation");
                 AtomicStatementType type = isFact ? AtomicStatementType.statementOfFact : AtomicStatementType.institutionalStatement;
                 if (isFact) {
-                    statementName = "Constitutive Statement";
                     for (Node c : children) {
                         if (c.name.equals("(A) Attribute")) {
                             statementName = "Regulative Statement";
                             break;
                         }
+                        if (c.name.equals("(E) Constituted Entity")) {
+                            statementName = "Constitutive Statement";
+                            break;
+                        }
+                    }
+                    if(statementName.equals("Fact/Observation")) {
+                        logs.add(new ExportLog(this, true, "missing attribute or constituted entity"));
+                        return null;
                     }
                 }
 
@@ -115,14 +122,16 @@ public class WebannoYamlWriter
                             Statement nested = null;
                             if (c.name.equals("Regulative Statement") || c.name.equals("Constitutive Statement") || c.name.equals("Fact/Observation")) {
                                 if (c.children.size() != 1) {
-                                    // nested statement has to have an annotation
+                                    logs.add(new ExportLog(c, true, "nested statement has to have another annotation"));
                                     return null;
                                 }
-                                nested = c.children.get(0).createStatement(c.name);
+                                nested = c.children.get(0).createStatement(c.name, logs);
                                 if (nested == null) {
-                                    // nested error
                                     return null;
                                 }
+                            }
+                            else if (c.children.size() > 0) {
+                                logs.add(new ExportLog(c, false, "should be a nested statement?"));
                             }
                             Node n = nested == null ? c : c.children.get(0);
 
@@ -132,7 +141,7 @@ public class WebannoYamlWriter
                                         attributes.add(n.simple());
                                     }
                                     else {
-                                        //cannot be a statement
+                                        logs.add(new ExportLog(n, true, "cannot be a nested statement"));
                                         return null;
                                     }
                                     break;
@@ -141,27 +150,27 @@ public class WebannoYamlWriter
                                         aims.add(n.simple());
                                     }
                                     else {
-                                        //cannot be a statement
+                                        logs.add(new ExportLog(n, true, "cannot be a nested statement"));
                                         return null;
                                     }
                                     break;
-                                case "(Bdir) Object_Direct":
+                                case "(Bdir) Object\\_Direct":
                                     bdirs.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
-                                case "(Bind) Object_Indirect":
+                                case "(Bind) Object\\_Indirect":
                                     binds.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 case "(D) Deontic":
                                     if (deontic != null) {
-                                        //there can only be one deontic
+                                        logs.add(new ExportLog(n, true, "there can only be one deontic"));
                                         return null;
                                     }
                                     if (nested != null) {
-                                        //cannot be a statement
+                                        logs.add(new ExportLog(n, true, "cannot be a nested statement"));
                                         return null;
                                     }
                                     if (isFact) {
-                                        //cannot be in a sof
+                                        logs.add(new ExportLog(n, true, "cannot be in a statement of fact"));
                                         return null;
                                     }
                                     deontic = n.simple();
@@ -172,24 +181,26 @@ public class WebannoYamlWriter
                                 case "(Cex) Execution Constraint":
                                     cexs.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
-                                case "(A, prop) Attribute_Property":
+                                case "(A, prop) Attribute\\_Property":
                                     attrProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
-                                case "(Bdir, prop) Object_Direct_Property":
+                                case "(Bdir, prop) Object\\_Direct\\_Property":
                                     bdirProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
-                                case "(Bind, prop) Object_Indirect_Property":
+                                case "(Bind, prop) Object\\_Indirect\\_Property":
                                     bindProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 default:
-                                    //unexpected annotation type
+                                    logs.add(new ExportLog(n, true, "unexpected annotation type"));
                                     return null;
                             }
                         }
                         if (attributes.isEmpty()) {
+                            logs.add(new ExportLog(this, true, "missing attribute"));
                             return null;
                         }
                         if (aims.isEmpty()) {
+                            logs.add(new ExportLog(this, true, "missing aim"));
                             return null;
                         }
 
@@ -200,7 +211,7 @@ public class WebannoYamlWriter
                         }
                         if (!bdirProps.isEmpty()) {
                             if (bdirs.isEmpty()) {
-                                // cannot assign properties
+                                logs.add(new ExportLog(this, true, "missing direct object"));
                                 return null;
                             }
                             ComponentWithProperties cp = new ComponentWithLooselyAttachedProperties((SimpleNode) bdirs.get(0), bdirProps);
@@ -208,7 +219,7 @@ public class WebannoYamlWriter
                         }
                         if (!bindProps.isEmpty()) {
                             if (binds.isEmpty()) {
-                                // cannot assign properties
+                                logs.add(new ExportLog(this, true, "missing indirect object"));
                                 return null;
                             }
                             ComponentWithProperties cp = new ComponentWithLooselyAttachedProperties((SimpleNode) binds.get(0), bindProps);
@@ -254,14 +265,16 @@ public class WebannoYamlWriter
                             Statement nested = null;
                             if (c.name.equals("Regulative Statement") || c.name.equals("Constitutive Statement") || c.name.equals("Fact/Observation")) {
                                 if (c.children.size() != 1) {
-                                    // nested statement has to have an annotation
+                                    logs.add(new ExportLog(c, true, "nested statement has to have another annotation"));
                                     return null;
                                 }
-                                nested = c.children.get(0).createStatement(c.name);
+                                nested = c.children.get(0).createStatement(c.name, logs);
                                 if (nested == null) {
-                                    // nested error
                                     return null;
                                 }
+                            }
+                            else if (c.children.size() > 0) {
+                                logs.add(new ExportLog(c, false, "should be a nested statement?"));
                             }
                             Node n = nested == null ? c : c.children.get(0);
 
@@ -271,7 +284,7 @@ public class WebannoYamlWriter
                                         entities.add(n.simple());
                                     }
                                     else {
-                                        //cannot be a statement
+                                        logs.add(new ExportLog(n, true, "cannot be a nested statement"));
                                         return null;
                                     }
                                     break;
@@ -280,7 +293,7 @@ public class WebannoYamlWriter
                                         functions.add(n.simple());
                                     }
                                     else {
-                                        //cannot be a statement
+                                        logs.add(new ExportLog(n, true, "cannot be a nested statement"));
                                         return null;
                                     }
                                     break;
@@ -289,21 +302,21 @@ public class WebannoYamlWriter
                                         cProperties.add(n.simple());
                                     }
                                     else {
-                                        //cannot be a statement
+                                        logs.add(new ExportLog(n, true, "cannot be a nested statement"));
                                         return null;
                                     }
                                     break;
                                 case "(D) Deontic":
                                     if (deontic != null) {
-                                        //there can only be one deontic
+                                        logs.add(new ExportLog(n, true, "there can only be one deontic"));
                                         return null;
                                     }
                                     if (nested != null) {
-                                        //cannot be a statement
+                                        logs.add(new ExportLog(n, true, "cannot be a nested statement"));
                                         return null;
                                     }
                                     if (isFact) {
-                                        //cannot be in a sof
+                                        logs.add(new ExportLog(n, true, "cannot be in a statement of fact"));
                                         return null;
                                     }
                                     deontic = n.simple();
@@ -321,15 +334,17 @@ public class WebannoYamlWriter
                                     propertyProps.add(Objects.requireNonNullElseGet(nested, n::simple));
                                     break;
                                 default:
-                                    //unexpected annotation type
+                                    logs.add(new ExportLog(n, true, "unexpected annotation type"));
                                     return null;
                             }
                         }
 
                         if (entities.isEmpty()) {
+                            logs.add(new ExportLog(this, true, "missing constituted entity"));
                             return null;
                         }
                         if (functions.isEmpty()) {
+                            logs.add(new ExportLog(this, true, "missing constitutive function"));
                             return null;
                         }
 
@@ -340,7 +355,7 @@ public class WebannoYamlWriter
                         }
                         if (!propertyProps.isEmpty()) {
                             if (cProperties.isEmpty()) {
-                                // cannot assign properties
+                                logs.add(new ExportLog(this, true, "missing constituting property"));
                                 return null;
                             }
                             ComponentWithProperties cp = new ComponentWithLooselyAttachedProperties((SimpleNode) cProperties.get(0), propertyProps);
@@ -369,7 +384,34 @@ public class WebannoYamlWriter
                         }
                         return c;
                     default:
+                        logs.add(new ExportLog(this, true, "has to be inside a statement"));
                         return null;
+                }
+            }
+
+            class ExportLog
+            {
+                Node n;
+                boolean error;
+                String message;
+
+                private String getType() {
+                    return error ? "Error: \"" : "Warning: \"";
+                }
+
+                private String getNodeInfo() {
+                    return "\" at: " + n.name + " \"" + n.text + "\" " + n.beg + "-" + n.end;
+                }
+
+                @Override
+                public String toString() {
+                    return getType() + message + getNodeInfo();
+                }
+
+                public ExportLog(Node n, boolean error, String message) {
+                    this.n = n;
+                    this.error = error;
+                    this.message = message;
                 }
             }
         }
@@ -496,7 +538,7 @@ public class WebannoYamlWriter
                     rawElements.add(matcher.group());
                 }
                 // regulative components
-                pattern = Pattern.compile("(\\(D\\) Deontic|\\(I\\) Aim|\\(Cac\\) Activation Condition|\\(Cex\\) Execution Constraint|\\(A\\) Attribute(?!_)|\\(Bdir\\) Object_Direct(?!_)|\\(Bind\\) Object_Indirect(?!_)|\\(A, prop\\) Attribute_Property|\\(Bdir, prop\\) Object_Direct_Property|\\(Bind, prop\\) Object_Indirect_Property)(?!\\[)");
+                pattern = Pattern.compile("(\\(D\\) Deontic|\\(I\\) Aim|\\(Cac\\) Activation Condition|\\(Cex\\) Execution Constraint|\\(A\\) Attribute(?!\\\\)|\\(Bdir\\) Object\\\\_Direct(?!\\\\)|\\(Bind\\) Object\\\\_Indirect(?!\\\\)|\\(A, prop\\) Attribute\\\\_Property|\\(Bdir, prop\\) Object\\\\_Direct\\\\_Property|\\(Bind, prop\\) Object\\\\_Indirect\\\\_Property)(?!\\[)");
                 matcher = pattern.matcher(values[pos.get(1)]);
                 while (matcher.find()) {
                     rawElements.add(matcher.group());
@@ -520,18 +562,16 @@ public class WebannoYamlWriter
         }
 
         List<Statement> statements = new ArrayList<>();
+        List<Node.ExportLog> logs = new ArrayList<>();
         for (Node r : roots) {
             AbstractStatement s = null;
             try {
-                s = r.createStatement(r.name);
+                s = r.createStatement(r.name, logs);
             } catch (InvalidIGDefinitionException e) {
                 e.printStackTrace();
             }
             if(s != null) {
                 statements.add(s);
-            }
-            else {
-                //log errors?
             }
         }
 
