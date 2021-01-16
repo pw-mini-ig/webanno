@@ -57,7 +57,7 @@ public class WebannoYamlWriter
      * Use this filename extension.
      */
     public static final String PARAM_FILENAME_EXTENSION = ComponentParameters.PARAM_FILENAME_EXTENSION;
-    @ConfigurationParameter(name = PARAM_FILENAME_EXTENSION, mandatory = true, defaultValue = ".tsv")
+    @ConfigurationParameter(name = PARAM_FILENAME_EXTENSION, mandatory = true, defaultValue = ".yaml")
     private String filenameSuffix;
 
     @Override
@@ -570,18 +570,20 @@ public class WebannoYamlWriter
             } catch (InvalidIGDefinitionException e) {
                 e.printStackTrace();
             }
-            if(s != null) {
+            if (s != null) {
                 statements.add(s);
             }
         }
 
-        /*
+        RootElement root = new RootElement("", statements);
+        String yaml = IgSchemaUtilities.generateYaml(root);
+
         try (PrintWriter docOS = new PrintWriter(
                 new OutputStreamWriter(buffer(getOutputStream(aJCas, filenameSuffix)), encoding))) {
-            new Tsv3XSerializer().write(docOS, doc);
+            docOS.printf("%s", yaml);
         }
         catch (IOException e) {
             throw new AnalysisEngineProcessException(e);
-        }*/
+        }
     }
 }
