@@ -581,6 +581,13 @@ public class WebannoYamlWriter
         try (PrintWriter docOS = new PrintWriter(
                 new OutputStreamWriter(buffer(getOutputStream(aJCas, filenameSuffix)), encoding))) {
             docOS.printf("%s", yaml);
+
+            if (!logs.isEmpty()) {
+                docOS.printf("\n\n# Logs from export:\n");
+                for (Node.ExportLog l : logs) {
+                    docOS.printf("# %s\n", l.toString());
+                }
+            }
         }
         catch (IOException e) {
             throw new AnalysisEngineProcessException(e);
