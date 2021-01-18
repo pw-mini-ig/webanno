@@ -428,6 +428,7 @@ public class WebannoYamlWriter
             }
         }
 
+        List<String> whole = new ArrayList<>();
         List<Node> roots = new ArrayList<>();
         Map<Integer, Node> nodes = new HashMap<>();
         Map<Integer, Double> idCounts = new HashMap<>();
@@ -448,6 +449,7 @@ public class WebannoYamlWriter
             }
         }
 
+        int prev = 0;
         for (TsvSentence sentence : doc.getSentences()) {
             // get column values for tokens
             List<TsvToken> tsvTokens = sentence.getTokens();
@@ -457,9 +459,33 @@ public class WebannoYamlWriter
                 tokens.add(s.split("\t"));
             }
 
-            // get number of id occurrences in sentence to set correct order in tree paths (elements with lower counts are deeper in the tree)
             Pattern pattern = Pattern.compile("\\d+(?=])");
             for (String[] values : tokens) {
+                //get whole text
+                switch (Integer.parseInt(values[1].substring(0, values[1].indexOf('-'))) - prev) {
+                    case 0:
+                        break;
+                    default:
+                        whole.add(" ");
+                    /* the more sophisticated variant, trying to replicate the original formatting
+                    case 1:
+                        whole.add(" ");
+                        break;
+                    case 2:
+                        whole.add("\n");
+                        break;
+                    case 3:
+                        whole.add(" \n");
+                        break;
+                    default:
+                        whole.add("\n\n");
+                        break;
+                     */
+                }
+                whole.add(values[2]);
+                prev = Integer.parseInt(values[1].substring(values[1].indexOf('-') + 1));
+
+                // get number of id occurrences in sentence to set correct order in tree paths (elements with lower counts are deeper in the tree)
                 for (int i : pos) {
                     Matcher matcher = pattern.matcher(values[i]);
                     while (matcher.find()) {
@@ -479,7 +505,7 @@ public class WebannoYamlWriter
                 tokens.add(s.split("\t"));
             }
 
-            int prev = -1;
+            prev = -1;
             for (String[] values : tokens) {
                 // get elements with ids
                 List<String> rawElements = new ArrayList<>();
@@ -575,7 +601,7 @@ public class WebannoYamlWriter
             }
         }
 
-        RootElement root = new RootElement("", statements);
+        RootElement root = new RootElement(String.join("", whole), statements);
         String yaml = IgSchemaUtilities.generateYaml(root);
 
         try (PrintWriter docOS = new PrintWriter(
